@@ -1,0 +1,249 @@
+def convert_to_yaml(filename):
+    data = {           
+        "title": "",
+        "jobid": "",
+        "files": {},
+        "crtout": {},
+        "gases": [],
+        "control_volumes": [],
+        "control_functions": [],
+        "flow_paths": [],
+        "sinks": [],
+        "outputs": [],
+        "external_data_files": [],
+        "melcor_configuration": {}
+    }
+
+    current_volume = None
+
+    with open(filename, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if not line or line.startswith('*'):
+                continue
+
+            tokens = line.split()
+            if len(tokens) == 0:
+                continue
+
+            # Identificar secciones
+            if tokens[0].lower() == "title" and len(tokens) > 1:
+                data["title"] = " ".join(tokens[1:])
+            elif tokens[0].lower() == "jobid" and len(tokens) > 1:
+                data["jobid"] = tokens[1]
+            elif tokens[0].lower() == "restartf" and len(tokens) > 1:
+                data["files"]["restartf"] = tokens[1]
+            elif tokens[0].lower() == "outputf" and len(tokens) > 1:
+                data["files"]["outputf"] = tokens[1]
+            elif tokens[0].lower() == "diagf" and len(tokens) > 1:
+                data["files"]["diagf"] = tokens[1]
+            elif tokens[0].lower() == "stopf" and len(tokens) > 1:
+                data["files"]["stopf"] = tokens[1]
+            elif tokens[0].lower() == "tstart" and len(tokens) > 1:
+                try:
+                    data["crtout"]["tstart"] = float(tokens[1])
+                except ValueError:
+                    continue
+            elif tokens[0].lower() == "dttime" and len(tokens) > 1:
+                try:
+                    data["crtout"]["dttime"] = float(tokens[1])
+                except ValueError:
+                    continue
+
+            # Procesar gases
+            elif tokens[0].startswith("NCG") and len(tokens) >= 3:
+                try:
+                    gas_id = int(tokens[2])
+                    gas_name = tokens[1]
+                    data["gases"].append({
+                        "id": gas_id,
+                        "name": gas_name
+                    })
+                except ValueError:
+                    continue
+
+            # Parser de los volúmenes de control (CV)
+            elif tokens[0].startswith("CV") and len(tokens) >= 3:
+                if tokens[0].endswith("00"):  # Inicio de un nuevo control volume
+                    current_volume = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "type": tokens[2],
+                        "properties": {},
+                        "altitude_volume": []
+                    }
+                    data["control_volumes"].append(current_volume)
+
+                elif tokens[0][-2] == "A" and tokens[0][-1].isdigit():
+                    key_value_pairs = {}
+                    # Procesar pares clave-valor de los volúmenes de control #AÑADIDA IMPORTANTE TUTOR
+                    for i in range(1, len(tokens), 2):
+                        if i + 1 < len(tokens):
+                            key = tokens[i]
+                            try:
+                                value = float(tokens[i + 1])
+                            except ValueError:
+                                value = tokens[i + 1]
+                            key_value_pairs[key] = value
+
+                    if current_volume is not None:
+                        current_volume["properties"].update(key_value_pairs)
+
+                elif tokens[0].endswith("B2") and len(tokens) >= 3:
+                    try:
+                        altitude = float(tokens[1])
+                        volume = float(tokens[2])
+                        if current_volume is not None:
+                            current_volume["altitude_volume"].append({
+                                "altitude": altitude,
+                                "volume": volume
+                        })
+                    except ValueError:
+                        continue
+
+            # Procesar flujos (flow paths)
+            elif tokens[0].startswith("FL") and len(tokens) >= 6:
+                # Caso para FLXXX00, que define el flujo básico
+                if tokens[0].endswith("00"):
+                    current_flow_path = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "from_control_volume": {
+                            "id": tokens[2],  # Volumen de control de origen
+                            "height": float(tokens[4])  # Altura del volumen de control de origen
+                        },
+                        "to_control_volume": {
+                            "id": tokens[3],  # Volumen de control de destino
+                            "height": float(tokens[5])  # Altura del volumen de control de destino
+                        },
+                        "geometry": {},  # Inicializar como diccionario
+                        "segment_parameters": {}  # Inicializar como diccionario
+                    }
+                    data["flow_paths"].append(current_flow_path)
+                    print(f"Creado nuevo flow_path: {current_flow_path}")
+
+                # Caso para FLXXX01, que define la geometría
+                elif tokens[0].endswith("01") and len(tokens) >= 4:
+                    if current_flow_path is not None:
+                        try:
+                            area = float(tokens[1])
+                            length = float(tokens[2])
+                            fraction_open = float(tokens[3])
+                            current_flow_path["geometry"] = {
+                                "area": area,
+                                "length": length,
+                                "fraction_open": fraction_open
+                            }
+                            print(f"Geometry asignado: {current_flow_path['geometry']}")
+                        except ValueError as e:
+                            print(f"Error en asignar geometry: {e}")
+                    else:
+                        print("Error: No se ha creado un flow_path antes de asignar geometry.")
+
+                # Caso para FLXXXS0, que define los parámetros del segmento
+                elif tokens[0].endswith("S0") and len(tokens) >= 4:
+                    if current_flow_path is not None:
+                        try:
+                            area = float(tokens[1])
+                            length = float(tokens[2])
+                            hydraulic_diameter = float(tokens[3])
+                            current_flow_path["segment_parameters"] = {
+                                "area": area,
+                                "length": length,
+                                "hydraulic_diameter": hydraulic_diameter
+                            }
+                            print(f"Segment parameters asignado: {current_flow_path['segment_parameters']}")
+                        except ValueError as e:
+                            print(f"Error en asignar segment parameters: {e}")
+                    else:
+                        print("Error: No se ha creado un flow_path antes de asignar segment parameters.")
+
+            # Depuración adicional para cada línea procesada
+                print(f"Línea procesada: {line}, Tokens: {tokens}")
+
+            # Procesar constantes
+            elif tokens[0].startswith("CF") and len(tokens) >= 5:
+                if tokens[1].lower() == "pressure":
+                    try:
+                        data["control_functions"].append({
+                            "id": tokens[0],
+                            "description": "Pressure equals",
+                            "value": float(tokens[4])
+                        })
+                    except ValueError:
+                        continue
+                elif tokens[1].lower() == "purified":
+                    try:
+                        data["constrol_functions"].append({
+                            "id": tokens[0],
+                            "description": "Purified flow rate",
+                            "rate": float(tokens[4])
+                        })
+                    except ValueError:
+                        continue
+            # Procesar sinks
+            elif tokens[0].startswith("CF") and "sink" in tokens[1].lower() and len(tokens) >= 5:
+                try:
+                    sink = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "type": tokens[2],
+                        "efficiency": float(tokens[4])
+                    }
+                    data["sinks"].append(sink)
+                except ValueError:
+                    continue
+
+            # Procesar salidas
+            elif tokens[0].startswith("CF") and tokens[1].lower() == "air%" and len(tokens) >= 4:
+                try:
+                    output = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "calculation": tokens[2],
+                        "value": float(tokens[3])
+                    }
+                    data["outputs"].append(output)
+                except ValueError:
+                    continue
+
+            # Procesar archivos externos
+            elif tokens[0].startswith("EDF") and len(tokens) >= 3:
+                external_file = {
+                    "id": tokens[0],
+                    "description": tokens[1],
+                    "file": tokens[2]
+                }
+                data["external_data_files"].append(external_file)
+
+            # Procesar configuración de MELCOR
+            elif tokens[0].lower() == "restartfile" and len(tokens) > 1:
+                data["melcor_configuration"]["restartfile"] = tokens[1]
+            elif tokens[0].lower() == "outputfile" and len(tokens) > 1:
+                data["melcor_configuration"]["outputfile"] = tokens[1]
+            elif tokens[0].lower() == "diagfile" and len(tokens) > 1:
+                data["melcor_configuration"]["diagfile"] = tokens[1]
+            elif tokens[0].lower() == "cpu_settings" and len(tokens) >= 3:
+                try:
+                    data["melcor_configuration"]["cpu_settings"] = {
+                        "cpuleft": float(tokens[1]),
+                        "cpulim": float(tokens[2])
+                    }
+                except ValueError:
+                    continue
+            elif tokens[0].lower() == "time_settings" and len(tokens) >= 4:
+                try:
+                    data["melcor_configuration"]["time_settings"] = {
+                        "tend": float(tokens[1]),
+                        "softdtmin": float(tokens[2]),
+                        "time1": list(map(float, tokens[3:]))
+                    }
+                except ValueError:
+                    continue
+
+    yaml_filename = os.path.basename(filename).replace('.inp', '.yaml')
+    yaml_path = os.path.join(app.config['UPLOAD_FOLDER'], yaml_filename)  
+    with open(yaml_path, 'w') as yaml_file:
+        yaml.dump(data, yaml_file, default_flow_style=False)
+
+    return yaml_filename

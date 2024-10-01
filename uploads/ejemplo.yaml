@@ -1,0 +1,98 @@
+control_functions: []
+control_volumes:
+- altitude_volume:
+  - altitude: 8.0
+    volume: 2500.0
+  id: CV00100
+  name: VOL_1
+  properties:
+    MLFR.4: 0.78
+    MLFR.5: 0.22
+    PVOL: 101300.0
+    RHUM: 0.6
+    TATM: 293.0
+  type: '2'
+- altitude_volume:
+  - altitude: 8.0
+    volume: 2500.0
+  id: CV00200
+  name: VOL_2
+  properties:
+    MLFR.4: 0.78
+    MLFR.5: 0.22
+    PVOL: 101000.0
+    RHUM: 0.6
+    TATM: 293.0
+  type: '2'
+- altitude_volume:
+  - altitude: 8.0
+    volume: 2500.0
+  id: CV00300
+  name: VOL_3
+  properties:
+    MLFR.4: 0.78
+    MLFR.5: 0.22
+    PVOL: 101300.0
+    RHUM: 0.6
+    TATM: 293.0
+  type: '2'
+- altitude_volume:
+  - altitude: 8.0
+    volume: 2500.0
+  id: CV00400
+  name: VOL_4
+  properties:
+    MLFR.4: 0.78
+    MLFR.5: 0.22
+    PVOL: 101000.0
+    RHUM: 0.6
+    TATM: 293.0
+  type: '2'
+crtout: {}
+external_data_files:
+- description: PRESSURES
+  file: '4'
+  id: EDF00100
+- description: '10.'
+  file: '10.'
+  id: EDF00110
+- description: CVH-P.1
+  file: '*'
+  id: EDF001A1
+- description: CVH-P.2
+  file: '*'
+  id: EDF001A2
+- description: CVH-P.3
+  file: '*'
+  id: EDF001A3
+- description: CVH-P.4
+  file: '*'
+  id: EDF001A4
+files: {}
+flow_paths:
+- from_control_volume:
+    height: 4.0
+    id: '001'
+  geometry:
+    area: 0.001
+    fraction_open: 1.0
+    length: 1.0
+  id: FL00100
+  name: FL_1
+  segment_parameters:
+    area: 0.001
+    hydraulic_diameter: 0.03568
+    length: 1.0
+  to_control_volume:
+    height: 4.0
+    id: '002'
+gases:
+- id: 4
+  name: N2
+- id: 5
+  name: O2
+jobid: ''
+melcor_configuration: {}
+outputs: []
+sinks: []
+title: EJEMPLO

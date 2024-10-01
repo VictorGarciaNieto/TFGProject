@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Archivo YAML</title>
+</head>
+<body>
+    <h1>Edita tu archivo YAML</h1>
+    
+    <form method="POST">
+        <textarea name="yaml_content" rows="20" cols="80">{{ yaml_content }}</textarea><br><br>
+        <button type="submit">Guardar cambios</button>
+    </form>
+    
+    <a href="{{ url_for('index') }}">
+        <button>Cancelar y volver al inicio</button>
+    </a>
+</body>
+</html>

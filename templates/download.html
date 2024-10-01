@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargar Archivo YAML</title>
+    <script src="{{ url_for('static', filename='js/d3.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/js-yaml.min.js') }}"></script>
+    <style>
+        #graph {
+            width: 100%;
+            height: 600px;
+            border: 1px solid black; /* Añadido para que el contenedor sea visible */
+            position: relative;
+            display: none; /* Oculta el gráfico por defecto */
+        }
+        .node {
+            stroke: #000;
+            stroke-width: 1.5px;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+        button {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Archivo convertido</h1>
+    <p>Tu archivo YAML está listo.</p>
+
+    <!-- Botón para descargar el archivo YAML -->
+    <a href="{{ url_for('download_file', filename=filename) }}">
+        <button>Descargar YAML</button>
+    </a>
+
+    <!-- Botón para editar el archivo YAML -->
+    <a href="{{ url_for('edit_file', filename=filename) }}">
+        <button>Editar YAML</button>
+    </a>
+
+     <!-- Botón para visualizar el gráfico -->
+     <a href="{{ url_for('visualize_file', filename=filename) }}">
+        <button>Show Graph</button>
+    </a>
+</body>
+</html>
