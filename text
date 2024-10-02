@@ -247,3 +247,50 @@ def convert_to_yaml(filename):
         yaml.dump(data, yaml_file, default_flow_style=False)
 
     return yaml_filename
+
+
+    # Procesar constantes
+            elif tokens[0].startswith("CF") and len(tokens) >= 5:
+                if tokens[1].lower() == "pressure":
+                    try:
+                        data["control_functions"].append({
+                            "id": tokens[0],
+                            "description": "Pressure equals",
+                            "value": float(tokens[4])
+                        })
+                    except ValueError:
+                        continue
+                elif tokens[1].lower() == "purified":
+                    try:
+                        data["control_functions"].append({
+                            "id": tokens[0],
+                            "description": "Purified flow rate",
+                            "rate": float(tokens[4])
+                        })
+                    except ValueError:
+                        continue
+            # Procesar sinks
+            elif tokens[0].startswith("CF") and "sink" in tokens[1].lower() and len(tokens) >= 5:
+                try:
+                    sink = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "type": tokens[2],
+                        "efficiency": float(tokens[4])
+                    }
+                    data["sinks"].append(sink)
+                except ValueError:
+                    continue
+
+            # Procesar salidas
+            elif tokens[0].startswith("CF") and tokens[1].lower() == "air%" and len(tokens) >= 4:
+                try:
+                    output = {
+                        "id": tokens[0],
+                        "name": tokens[1],
+                        "calculation": tokens[2],
+                        "value": float(tokens[3])
+                    }
+                    data["outputs"].append(output)
+                except ValueError:
+                    continue

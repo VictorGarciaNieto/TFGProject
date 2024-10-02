@@ -1,4 +1,13 @@
-control_functions: []
+control_functions:
+- additive_constant: 0.0
+  arguments:
+  - additive_constant: 10.0
+    database_element: TIME
+    scale_factor: 0.0
+  name: FL_VEL
+  num_arguments: 1
+  scale_factor: 1.0
+  type: EQUALS
 control_volumes:
 - altitude_volume:
   - altitude: 8.0
@@ -50,24 +59,20 @@ control_volumes:
   type: '2'
 crtout: {}
 external_data_files:
-- description: PRESSURES
-  file: '4'
-  id: EDF00100
-- description: '10.'
-  file: '10.'
-  id: EDF00110
-- description: CVH-P.1
-  file: '*'
-  id: EDF001A1
-- description: CVH-P.2
-  file: '*'
-  id: EDF001A2
-- description: CVH-P.3
-  file: '*'
-  id: EDF001A3
-- description: CVH-P.4
-  file: '*'
-  id: EDF001A4
+- channel_variables:
+    A1: CVH-P.1
+    A2: CVH-P.2
+    A3: CVH-P.3
+    A4: CVH-P.4
+  channels: 4
+  file_format: 8E20.12
+  file_specification:
+    file_name: PRESSURES.DAT
+  mode: WRITE
+  name: PRESSURES
+  write_increment_control:
+    time_effective: 10.0
+    time_increment: 10.0
 files: {}
 flow_paths:
 - from_control_volume:
@@ -78,6 +83,8 @@ flow_paths:
     fraction_open: 1.0
     length: 1.0
   id: FL00100
+  junction_limits: {}
+  junction_switches: {}
   name: FL_1
   segment_parameters:
     area: 0.001

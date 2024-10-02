@@ -152,7 +152,9 @@ def convert_to_yaml(filename):
                             "height": float(tokens[5])  # Altura del volumen de control de destino
                         },
                         "geometry": {},  # Inicializa el diccionario para la geometría
-                        "segment_parameters": {}
+                        "segment_parameters": {}, 
+                        "junction_limits": {},
+                        "time_dependent_flow_path": {} 
                     }
                     data["flow_paths"].append(current_flow_path)
 
@@ -173,62 +175,98 @@ def convert_to_yaml(filename):
                             "length": float(tokens[2]),  # Longitud del segmento
                             "hydraulic_diameter": float(tokens[3])  # Diámetro hidráulico del segmento
                         }
+
+                elif tokens[0].endswith("0F") and len(tokens) >= 3:
+                    # Campo '0F': Junction limits, from volume
+                    if "junction_limits" in current_flow_path:
+                        current_flow_path["junction_limits"]["from_volume"] = {
+                            "bottom_opening_elevation": float(tokens[1]),  # Elevación del fondo de la apertura de la junta para el volumen de origen
+                            "top_opening_elevation": float(tokens[2])  # Elevación de la parte superior de la apertura de la junta para el volumen de origen
+                        }
+
+                elif tokens[0].endswith("0T") and len(tokens) >= 3:
+                    # Campo '0T': Junction limits, to volume
+                    if "junction_limits" in current_flow_path:
+                        current_flow_path["junction_limits"]["to_volume"] = {
+                            "bottom_opening_elevation": float(tokens[1]),  # Elevación del fondo de la apertura de la junta para el volumen de destino
+                            "top_opening_elevation": float(tokens[2])  # Elevación de la parte superior de la apertura de la junta para el volumen de destino
+                        }
+
+                elif tokens[0].endswith("T0") and len(tokens) >= 3:
+                    # Campo 'T0': Time dependent flow path
+                        current_flow_path["time_dependent_flow_path"] = {
+                            "type_flag": int(tokens[1]),  # Tipo de flujo dependiente del tiempo
+                            "function_number": int(tokens[2])  # Número de función tabular o de control
+                        }
+
+
+                        
             #Funciona ->
-            
-            # Procesar constantes
-            elif tokens[0].startswith("CF") and len(tokens) >= 5:
-                if tokens[1].lower() == "pressure":
-                    try:
-                        data["control_functions"].append({
-                            "id": tokens[0],
-                            "description": "Pressure equals",
-                            "value": float(tokens[4])
-                        })
-                    except ValueError:
-                        continue
-                elif tokens[1].lower() == "purified":
-                    try:
-                        data["control_functions"].append({
-                            "id": tokens[0],
-                            "description": "Purified flow rate",
-                            "rate": float(tokens[4])
-                        })
-                    except ValueError:
-                        continue
-            # Procesar sinks
-            elif tokens[0].startswith("CF") and "sink" in tokens[1].lower() and len(tokens) >= 5:
-                try:
-                    sink = {
-                        "id": tokens[0],
-                        "name": tokens[1],
-                        "type": tokens[2],
-                        "efficiency": float(tokens[4])
+            elif tokens[0].startswith("CF") and len(tokens) >= 4:
+                if tokens[0].endswith("00"):
+                    current_cf = {
+                        "name": tokens[1],  # Nombre definido por el usuario de la función de control
+                        "type": tokens[2],  # Tipo de función de control
+                        "num_arguments": int(tokens[3]),  # Número de argumentos
+                        "scale_factor": float(tokens[4]),  # Factor de escala multiplicativo
+                        "additive_constant": float(tokens[5]) if len(tokens) > 5 else 0.0  # Constante aditiva (opcional)
                     }
-                    data["sinks"].append(sink)
-                except ValueError:
-                    continue
+                    data["control_functions"].append(current_cf)
 
-            # Procesar salidas
-            elif tokens[0].startswith("CF") and tokens[1].lower() == "air%" and len(tokens) >= 4:
-                try:
-                    output = {
-                        "id": tokens[0],
-                        "name": tokens[1],
-                        "calculation": tokens[2],
-                        "value": float(tokens[3])
-                    }
-                    data["outputs"].append(output)
-                except ValueError:
-                    continue
-
+                elif len(tokens) >= 4 and tokens[0][2:].isdigit() and int(tokens[0][2:]) >= 10:  # Control Function Arguments (kk >= 10)
+                    if current_cf is not None:
+                        argument = {
+                            "scale_factor": float(tokens[1]),  # Factor de escala multiplicativo
+                            "additive_constant": float(tokens[2]),  # Constante aditiva
+                            "database_element": tokens[3]  # Identificador del elemento de la base de datos
+                        }
+                        if "arguments" not in current_cf:
+                            current_cf["arguments"] = []
+                            current_cf["arguments"].append(argument)
+            # <-Funciona
             # Procesar archivos externos
-            elif tokens[0].startswith("EDF") and len(tokens) >= 3:
-                external_file = {
-                    "id": tokens[0],
-                    "description": tokens[1],
-                    "file": tokens[2]
-                }
-                data["external_data_files"].append(external_file)
+            elif tokens[0].startswith("EDF") and len(tokens) >= 2:
+                if tokens[0].endswith("00"):  # External Data File Definition Record
+                    current_edf = {
+                        "name": tokens[1],  # User defined external data file name
+                        "channels": int(tokens[2]),  # Number of channels (dependent variables)
+                        "mode": tokens[3],  # Direction and mode of information transfer
+                        "file_specification": {}  # Initialize file specification as empty
+                    }
+                    data["external_data_files"].append(current_edf)
+
+                elif tokens[0].endswith("01"):  # File Specification
+                    # Campo '01':File Specification
+                    if "file_specification" in current_edf:
+                        current_edf["file_specification"] = {
+                            "file_name": tokens[1]  # Name of the file in the operating system
+                        }
+
+                elif tokens[0].endswith("02") and len(tokens) >= 2:
+                    # Campo '02': External Data File Format
+                    current_edf["file_format"] = tokens[1]  # Elimina comillas simples si están presentes
+
+                
+                elif tokens[0].endswith("10") and len(tokens) >= 3:
+                    print(f"Tokens: {tokens}")
+                    # Campo '10': Write Increment Control for WRITE or PUSH File
+                    current_edf["write_increment_control"] = {
+                        "time_effective": float(tokens[1]),  # Tiempo en el que el incremento de salida entra en efecto
+                        "time_increment": float(tokens[2])  # Incremento de tiempo entre los registros de salida
+                    }
+
+                elif tokens[0][-2] == "A" and tokens[0][-1].isdigit():
+                    # Inicializa el diccionario si no existe
+                    if "channel_variables" not in current_edf:
+                        current_edf["channel_variables"] = {}
+
+                    # Usa el índice como clave y el valor como el token correspondiente
+                    index = tokens[0][-1]  # Obtén el índice del campo
+                    value = tokens[1].strip()  # Obtén el valor del token, eliminando espacios
+
+                    # Almacena el valor en el diccionario de variables del canal
+                    current_edf["channel_variables"][f"A{index}"] = value
+            #Funciona->
 
             # Procesar configuración de MELCOR
             elif tokens[0].lower() == "restartfile" and len(tokens) > 1:
