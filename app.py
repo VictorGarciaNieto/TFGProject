@@ -41,7 +41,11 @@ def convert_to_yaml(filename):
             "flow_paths": [],
             "external_data_files": []
         },
-        "melcor_input": {}
+        "melcor_input": {
+            "warning_level": None,
+            "cpu_settings": {},
+            "time_settings": {}
+        }
     }
 
     current_volume = None
@@ -62,6 +66,7 @@ def convert_to_yaml(filename):
             elif tokens[0].lower() == "jobid" and len(tokens) > 1:
                 data["jobid"] = tokens[1]
 
+            # Parte correspondiente al melgen_input
             # Procesar ncg_input
             elif tokens[0].startswith("NCG") and len(tokens) >= 3:
                 try:
@@ -239,7 +244,36 @@ def convert_to_yaml(filename):
                     value = tokens[1].strip()  # Obtén el valor del token, eliminando espacios
                     # Almacena el valor en el diccionario de variables del canal
                     current_edf["channel_variables"][f"A{index}"] = value
-                    
+
+            elif tokens[0] == "WARNINGLEVEL":
+                    data["melcor_input"]["warning_level"] = int(tokens[1])  # Guardamos el valor del WARNINGLEVEL
+
+            # Parser para CPULEFT
+            elif tokens[0] == "CPULEFT":
+                data["melcor_input"]["cpu_settings"]["cpu_left"] = float(tokens[1])  # Guardamos el valor de CPULEFT
+
+            # Parser para CPULIM
+            elif tokens[0] == "CPULIM":
+                data["melcor_input"]["cpu_settings"]["cpu_lim"] = float(tokens[1])  # Guardamos el valor de CPULIM
+
+            # Parser para CYMESF
+            elif tokens[0] == "CYMESF":
+                data["melcor_input"]["cpu_settings"]["cymesf"] = [float(x) for x in tokens[1:]]  # Guardamos los valores como lista de floats
+
+            # Parser para TEND
+            elif tokens[0] == "TEND":
+                data["melcor_input"]["time_settings"]["tend"] = float(tokens[1])
+
+            elif tokens[0] == "TIME1":
+                data["melcor_input"]["time_settings"]["time1"] = {
+                    "time": float(tokens[1]),
+                    "dtmax": float(tokens[2]),
+                    "dtmin": float(tokens[3]),
+                    "dtedt": float(tokens[4]),
+                    "dtplt": float(tokens[5]),
+                    "dtrst": float(tokens[6])
+                }
+
     yaml_filename = os.path.basename(filename).replace('.inp', '.yaml')
     yaml_path = os.path.join(app.config['UPLOAD_FOLDER'], yaml_filename)  
     with open(yaml_path, 'w') as yaml_file:

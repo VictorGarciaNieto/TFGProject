@@ -121,4 +121,20 @@ melgen_input:
       A2: CVH-P.2
       A3: CVH-P.3
       A4: CVH-P.4
-melcor_input: {}
+melcor_input:
+  warning_level: 2
+  cpu_settings:
+    cpu_left: 100.0
+    cpu_lim: 100000.0
+    cymesf:
+    - 100.0
+    - 100.0
+  time_settings:
+    tend: 5000.0
+    time1:
+      time: 0.0
+      dtmax: 1.0
+      dtmin: 1.0
+      dtedt: 1.0
+      dtplt: 1.0
+      dtrst: 1.0
