@@ -30,24 +30,18 @@ def upload_file():
 
         return render_template('download.html', filename=yaml_filename)
 
-
-import os
-import yaml
-
 def convert_to_yaml(filename):
-    data = {           
+    data = {
         "title": "",
         "jobid": "",
-        "files": {},
-        "crtout": {},
-        "gases": [],
-        "control_volumes": [],
-        "control_functions": [],
-        "flow_paths": [],
-        "sinks": [],
-        "outputs": [],
-        "external_data_files": [],
-        "melcor_configuration": {}
+        "melgen_input": {
+            "ncg_input": [],
+            "control_volumes": [],
+            "control_functions": [],
+            "flow_paths": [],
+            "external_data_files": []
+        },
+        "melcor_input": {}
     }
 
     current_volume = None
@@ -58,7 +52,6 @@ def convert_to_yaml(filename):
             line = line.strip()
             if not line or line.startswith('*'):
                 continue
-
             tokens = line.split()
             if len(tokens) == 0:
                 continue
@@ -68,52 +61,33 @@ def convert_to_yaml(filename):
                 data["title"] = " ".join(tokens[1:])
             elif tokens[0].lower() == "jobid" and len(tokens) > 1:
                 data["jobid"] = tokens[1]
-            elif tokens[0].lower() == "restartf" and len(tokens) > 1:
-                data["files"]["restartf"] = tokens[1]
-            elif tokens[0].lower() == "outputf" and len(tokens) > 1:
-                data["files"]["outputf"] = tokens[1]
-            elif tokens[0].lower() == "diagf" and len(tokens) > 1:
-                data["files"]["diagf"] = tokens[1]
-            elif tokens[0].lower() == "stopf" and len(tokens) > 1:
-                data["files"]["stopf"] = tokens[1]
-            elif tokens[0].lower() == "tstart" and len(tokens) > 1:
-                try:
-                    data["crtout"]["tstart"] = float(tokens[1])
-                except ValueError:
-                    continue
-            elif tokens[0].lower() == "dttime" and len(tokens) > 1:
-                try:
-                    data["crtout"]["dttime"] = float(tokens[1])
-                except ValueError:
-                    continue
 
-            # Procesar gases
+            # Procesar ncg_input
             elif tokens[0].startswith("NCG") and len(tokens) >= 3:
                 try:
                     gas_id = int(tokens[2])
                     gas_name = tokens[1]
-                    data["gases"].append({
+                    data["melgen_input"]["ncg_input"].append({
                         "id": gas_id,
                         "name": gas_name
                     })
                 except ValueError:
                     continue
-            #Funciona <-
+
             # Parser de los volúmenes de control (CV)
             elif tokens[0].startswith("CV") and len(tokens) >= 3:
                 if tokens[0].endswith("00"):  # Inicio de un nuevo control volume
                     current_volume = {
-                        "id": tokens[0],
+                        "id": tokens[0][2:5],
                         "name": tokens[1],
                         "type": tokens[2],
                         "properties": {},
-                        "altitude_volume": []
+                        "altitude_volume": {}
                     }
-                    data["control_volumes"].append(current_volume)
+                    data["melgen_input"]["control_volumes"].append(current_volume)
 
                 elif tokens[0][-2] == "A" and tokens[0][-1].isdigit():
                     key_value_pairs = {}
-                    # Procesar pares clave-valor de los volúmenes de control
                     for i in range(1, len(tokens), 2):
                         if i + 1 < len(tokens):
                             key = tokens[i]
@@ -126,22 +100,24 @@ def convert_to_yaml(filename):
                     if current_volume is not None:
                         current_volume["properties"].update(key_value_pairs)
 
-                elif tokens[0].endswith("B2") and len(tokens) >= 3:
-                    try:
-                        altitude = float(tokens[1])
-                        volume = float(tokens[2])
-                        if current_volume is not None:
-                            current_volume["altitude_volume"].append({
-                                "altitude": altitude,
-                                "volume": volume
-                        })
-                    except ValueError:
-                        continue
+                elif tokens[0][-2] == "B" and tokens[0][-1].isdigit():
+                    key_value_pairs = {}
+                    for i in range(1, len(tokens), 2):
+                        if i + 1 < len(tokens):
+                            key = tokens[i]
+                            try:
+                                value = float(tokens[i + 1])
+                            except ValueError:
+                                value = tokens[i + 1]
+                            key_value_pairs[key] = value
+
+                    if current_volume is not None:
+                        current_volume["altitude_volume"].update(key_value_pairs)
 
             elif tokens[0].startswith("FL") and len(tokens) >= 3:
                 if tokens[0].endswith("00"):  # Inicio de un nuevo flow path
                     current_flow_path = {
-                        "id": tokens[0],  # Identificador del flow path
+                        "id": tokens[0][2:5],  # Identificador del flow path
                         "name":tokens[1],
                         "from_control_volume": {
                             "id": tokens[2],  # Volumen de control de origen
@@ -156,7 +132,7 @@ def convert_to_yaml(filename):
                         "junction_limits": {},
                         "time_dependent_flow_path": {} 
                     }
-                    data["flow_paths"].append(current_flow_path)
+                    data["melgen_input"]["flow_paths"].append(current_flow_path)
 
                 elif tokens[0].endswith("01") and len(tokens) >= 4:#"from_control_volume" in current_flow_path and "to_control_volume" in current_flow_path:
                     # Campo '01': Flow path geometry
@@ -197,21 +173,20 @@ def convert_to_yaml(filename):
                         current_flow_path["time_dependent_flow_path"] = {
                             "type_flag": int(tokens[1]),  # Tipo de flujo dependiente del tiempo
                             "function_number": int(tokens[2])  # Número de función tabular o de control
-                        }
+                        }          
 
-
-                        
-            #Funciona ->
             elif tokens[0].startswith("CF") and len(tokens) >= 4:
                 if tokens[0].endswith("00"):
                     current_cf = {
+                        "id": tokens[0][2:5],
                         "name": tokens[1],  # Nombre definido por el usuario de la función de control
                         "type": tokens[2],  # Tipo de función de control
+                        "sinks": [],
                         "num_arguments": int(tokens[3]),  # Número de argumentos
                         "scale_factor": float(tokens[4]),  # Factor de escala multiplicativo
                         "additive_constant": float(tokens[5]) if len(tokens) > 5 else 0.0  # Constante aditiva (opcional)
                     }
-                    data["control_functions"].append(current_cf)
+                    data["melgen_input"]["control_functions"].append(current_cf)
 
                 elif len(tokens) >= 4 and tokens[0][2:].isdigit() and int(tokens[0][2:]) >= 10:  # Control Function Arguments (kk >= 10)
                     if current_cf is not None:
@@ -223,7 +198,7 @@ def convert_to_yaml(filename):
                         if "arguments" not in current_cf:
                             current_cf["arguments"] = []
                             current_cf["arguments"].append(argument)
-            # <-Funciona
+
             # Procesar archivos externos
             elif tokens[0].startswith("EDF") and len(tokens) >= 2:
                 if tokens[0].endswith("00"):  # External Data File Definition Record
@@ -233,7 +208,7 @@ def convert_to_yaml(filename):
                         "mode": tokens[3],  # Direction and mode of information transfer
                         "file_specification": {}  # Initialize file specification as empty
                     }
-                    data["external_data_files"].append(current_edf)
+                    data["melgen_input"]["external_data_files"].append(current_edf)
 
                 elif tokens[0].endswith("01"):  # File Specification
                     # Campo '01':File Specification
@@ -259,44 +234,16 @@ def convert_to_yaml(filename):
                     # Inicializa el diccionario si no existe
                     if "channel_variables" not in current_edf:
                         current_edf["channel_variables"] = {}
-
                     # Usa el índice como clave y el valor como el token correspondiente
                     index = tokens[0][-1]  # Obtén el índice del campo
                     value = tokens[1].strip()  # Obtén el valor del token, eliminando espacios
-
                     # Almacena el valor en el diccionario de variables del canal
                     current_edf["channel_variables"][f"A{index}"] = value
-            #Funciona->
-
-            # Procesar configuración de MELCOR
-            elif tokens[0].lower() == "restartfile" and len(tokens) > 1:
-                data["melcor_configuration"]["restartfile"] = tokens[1]
-            elif tokens[0].lower() == "outputfile" and len(tokens) > 1:
-                data["melcor_configuration"]["outputfile"] = tokens[1]
-            elif tokens[0].lower() == "diagfile" and len(tokens) > 1:
-                data["melcor_configuration"]["diagfile"] = tokens[1]
-            elif tokens[0].lower() == "cpu_settings" and len(tokens) >= 3:
-                try:
-                    data["melcor_configuration"]["cpu_settings"] = {
-                        "cpuleft": float(tokens[1]),
-                        "cpulim": float(tokens[2])
-                    }
-                except ValueError:
-                    continue
-            elif tokens[0].lower() == "time_settings" and len(tokens) >= 4:
-                try:
-                    data["melcor_configuration"]["time_settings"] = {
-                        "tend": float(tokens[1]),
-                        "softdtmin": float(tokens[2]),
-                        "time1": list(map(float, tokens[3:]))
-                    }
-                except ValueError:
-                    continue
-
+                    
     yaml_filename = os.path.basename(filename).replace('.inp', '.yaml')
     yaml_path = os.path.join(app.config['UPLOAD_FOLDER'], yaml_filename)  
     with open(yaml_path, 'w') as yaml_file:
-        yaml.dump(data, yaml_file, default_flow_style=False)
+        yaml.dump(data, yaml_file, default_flow_style=False, sort_keys=False)
 
     return yaml_filename
 
@@ -329,6 +276,7 @@ def edit_file(filename):
         yaml_content = f.read()
     
     return render_template('editor.html', yaml_content=yaml_content)
+
 @app.route('/visualize/<filename>', methods=['GET'])
 def visualize_file(filename):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -339,16 +287,16 @@ def visualize_file(filename):
     # Crear nodos para control volumes (habitaciones)
     nodes = [{'id': cv['id'], 'label': cv['name'], 'group': 'control_volume'} for cv in yaml_data['control_volumes']]
     
-    # Crear nodos para gases
-    nodes += [{'id': gas['id'], 'label': gas['name'], 'group': 'gas'} for gas in yaml_data['gases']]
+    # Crear nodos para ncg_input
+    nodes += [{'id': gas['id'], 'label': gas['name'], 'group': 'gas'} for gas in yaml_data['ncg_input']]
     
     # Crear nodos para flujos (componentes)
     nodes += [{'id': flow['id'], 'label': flow['name'], 'group': 'flow'} for flow in yaml_data['flows']]
     
-    # Crear aristas entre control volumes y gases
+    # Crear aristas entre control volumes y ncg_input
     edges = []
     for cv in yaml_data['control_volumes']:
-        for gas in yaml_data['gases']:
+        for gas in yaml_data['ncg_input']:
             edges.append({'from': cv['id'], 'to': gas['id'], 'label': 'contains'})
     
     # Crear aristas entre control volumes y flujos
